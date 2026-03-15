@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="id" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Monitoring CKG - Puskesmas Cibuntu</title>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { jakarta: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        navy: { 50:'#f0f4ff',100:'#e0e8ff',200:'#c1d0ff',300:'#a2b8ff',400:'#7a96f5',500:'#5b7dee',600:'#1e40af',700:'#1a3691',800:'#152c73',900:'#0f2155' },
+        ocean: { 50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#06b6d4',600:'#0891b2' },
+        emerald: { 50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669' },
+        amber: { 50:'#fffbeb',100:'#fef3c7',400:'#fbbf24',500:'#f59e0b',600:'#d97706' }
+      }
+    }
+  }
+}
+</script>
+html, body { height: 100%; margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+body { overflow: hidden; }
+.app-root { height: 100%; width: 100%; overflow: auto; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+.fade-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+.slide-up { animation: slideUp 0.5s ease-out forwards; opacity:0; }
+.slide-up-1 { animation-delay: 0.05s; }
+.slide-up-2 { animation-delay: 0.1s; }
+.slide-up-3 { animation-delay: 0.15s; }
+.slide-up-4 { animation-delay: 0.2s; }
+.card-hover { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+.card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -12px rgba(0,0,0,0.15); }
+.sidebar-link { transition: all 0.2s ease; }
+.sidebar-link:hover, .sidebar-link.active { background: rgba(255,255,255,0.12); }
+.btn-primary { background: linear-gradient(135deg, #1e40af, #3b82f6); transition: all 0.3s ease; }
+.btn-primary:hover { background: linear-gradient(135deg, #1a3691, #2563eb); transform: translateY(-1px); box-shadow: 0 8px 20px -4px rgba(30,64,175,0.4); }
+.glass-card { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6); }
+.stat-gradient-1 { background: linear-gradient(135deg, #1e40af, #3b82f6); }
+.stat-gradient-2 { background: linear-gradient(135deg, #059669, #34d399); }
+.stat-gradient-3 { background: linear-gradient(135deg, #d97706, #fbbf24); }
+.stat-gradient-4 { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
+.hero-bg { background: linear-gradient(135deg, #0f2155 0%, #1e40af 40%, #3b82f6 100%); }
+.progress-bar { background: linear-gradient(90deg, #059669, #34d399); transition: width 1s ease; }
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 20px; border-radius: 10px; color: white; font-weight: 500; font-size: 14px; animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { to { opacity: 0; transform: translateX(50%); } }
+.toast-success { background: linear-gradient(135deg, #059669, #34d399); }
+.toast-error { background: linear-gradient(135deg, #dc2626, #f87171); }
+.toast-info { background: linear-gradient(135deg, #1e40af, #3b82f6); }
+.modal-overlay { background: rgba(15,33,85,0.5); backdrop-filter: blur(4px); }
+.upload-zone { border: 2px dashed #94a3b8; transition: all 0.3s ease; }
+.upload-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+.table-row:hover { background: #f8fafc; }
+</style>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+ </head>
+ <body class="h-full bg-slate-50">
+  <div class="app-root" id="app"><!-- TOAST CONTAINER -->
+   <div class="toast-container" id="toastContainer"></div><!-- ==================== LANDING PAGE ==================== -->
+   <div id="landingPage" class="w-full"><!-- NAVBAR -->
+    <nav class="w-full bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50">
+     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <div class="flex items-center gap-3">
+       <div class="w-9 h-9 rounded-lg stat-gradient-1 flex items-center justify-center"><i data-lucide="activity" class="w-5 h-5 text-white"></i>
+       </div><span class="font-bold text-navy-800 text-sm sm:text-base" id="navTitle">Monitoring CKG</span>
+      </div><button onclick="showPage('login')" class="btn-primary text-white px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2"> <i data-lucide="log-in" class="w-4 h-4"></i> Login Petugas </button>
+     </div>
+    </nav><!-- HERO -->
+    <section class="hero-bg w-full py-16 sm:py-24 px-4 relative overflow-hidden">
+     <div class="absolute inset-0 opacity-10">
+      <svg width="100%" height="100%">
+       <defs>
+        <pattern id="grid" width="40" height="40" patternunits="userSpaceOnUse">
+         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="0.5" />
+        </pattern>
+       </defs><rect width="100%" height="100%" fill="url(#grid)" />
+      </svg>
+     </div>
+     <div class="max-w-7xl mx-auto relative z-10">
+      <div class="text-center mb-12 slide-up slide-up-1">
+       <div class="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 text-ocean-200 text-xs font-medium"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Real-time Monitoring
+       </div>
+       <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-4" id="heroTitle">Monitoring Capaian Program<br>
+        Cek Kesehatan Gratis (CKG)</h1>
+       <p class="text-xl sm:text-2xl text-ocean-200 font-semibold mb-2" id="heroSubtitle">UPTD Puskesmas Cibuntu</p>
+       <p class="text-slate-300 max-w-2xl mx-auto text-sm sm:text-base">Sistem monitoring digital untuk memantau capaian program pemeriksaan kesehatan gratis masyarakat secara real-time dan terintegrasi.</p>
+      </div><!-- STAT CARDS -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+       <div class="glass-card rounded-2xl p-6 text-center card-hover slide-up slide-up-2">
+        <div class="w-12 h-12 rounded-xl stat-gradient-1 flex items-center justify-center mx-auto mb-3"><i data-lucide="target" class="w-6 h-6 text-white"></i>
+        </div>
+        <p class="text-slate-500 text-sm mb-1">Target Pemeriksaan</p>
+        <p class="text-3xl font-extrabold text-navy-800" id="landingTarget">5.000</p>
+        <p class="text-xs text-slate-400 mt-1">orang</p>
+       </div>
+       <div class="glass-card rounded-2xl p-6 text-center card-hover slide-up slide-up-3">
+        <div class="w-12 h-12 rounded-xl stat-gradient-2 flex items-center justify-center mx-auto mb-3"><i data-lucide="users" class="w-6 h-6 text-white"></i>
+        </div>
+        <p class="text-slate-500 text-sm mb-1">Status Kehadiran</p>
+        <p class="text-3xl font-extrabold text-navy-800" id="landingAttendance">2.350</p>
+        <p class="text-xs text-slate-400 mt-1">orang</p>
+       </div>
+       <div class="glass-card rounded-2xl p-6 text-center card-hover slide-up slide-up-4">
+        <div class="w-12 h-12 rounded-xl stat-gradient-3 flex items-center justify-center mx-auto mb-3"><i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
+        </div>
+        <p class="text-slate-500 text-sm mb-1">Persentase Capaian</p>
+        <p class="text-3xl font-extrabold text-navy-800" id="landingPercent">47%</p>
+        <p class="text-xs text-emerald-600 mt-1">dari target</p>
+       </div>
+      </div><!-- PROGRESS BAR -->
+      <div class="glass-card rounded-2xl p-6 max-w-3xl mx-auto slide-up slide-up-4">
+       <div class="flex justify-between mb-2"><span class="text-sm font-semibold text-navy-700">Progress Keseluruhan</span> <span class="text-sm font-bold text-emerald-600" id="progressText">47%</span>
+       </div>
+       <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden">
+        <div class="progress-bar h-full rounded-full" id="progressBarLanding" style="width:47%"></div>
+       </div>
+      </div>
+     </div>
+    </section><!-- CHARTS SECTION -->
+    <section class="w-full py-12 px-4 bg-slate-50">
+     <div class="max-w-7xl mx-auto">
+      <h2 class="text-2xl font-bold text-navy-800 mb-8 text-center">Statistik Program</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 card-hover">
+        <h3 class="font-semibold text-navy-700 mb-4 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-500"></i> Progress Bulanan</h3>
+        <canvas id="landingBarChart" height="220"></canvas>
+       </div>
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 card-hover">
+        <h3 class="font-semibold text-navy-700 mb-4 flex items-center gap-2"><i data-lucide="pie-chart" class="w-5 h-5 text-emerald-500"></i> Distribusi per Kelurahan</h3>
+        <canvas id="landingPieChart" height="220"></canvas>
+       </div>
+      </div>
+     </div>
+    </section><!-- FOOTER -->
+    <footer class="w-full bg-navy-900 text-slate-400 py-8 px-4 text-center text-sm">
+     <p>© <span id="footerYear">2025</span> UPTD Puskesmas Cibuntu. Sistem Monitoring CKG.</p>
+    </footer>
+   </div><!-- ==================== LOGIN PAGE ==================== -->
+   <div id="loginPage" class="w-full h-full hidden" style="background: linear-gradient(135deg, #0f2155, #1e40af, #3b82f6);">
+    <div class="flex items-center justify-center min-h-full p-4 relative">
+     <div class="absolute inset-0 opacity-5">
+      <svg width="100%" height="100%">
+       <defs>
+        <pattern id="grid2" width="30" height="30" patternunits="userSpaceOnUse">
+         <path d="M 30 0 L 0 0 0 30" fill="none" stroke="white" stroke-width="0.5" />
+        </pattern>
+       </defs><rect width="100%" height="100%" fill="url(#grid2)" />
+      </svg>
+     </div>
+     <div class="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 w-full max-w-md relative z-10 fade-in">
+      <div class="text-center mb-8">
+       <div class="w-16 h-16 rounded-2xl stat-gradient-1 flex items-center justify-center mx-auto mb-4"><i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+       </div>
+       <h2 class="text-2xl font-extrabold text-navy-800">Login Petugas</h2>
+       <p class="text-slate-400 text-sm mt-1">Masuk ke sistem monitoring CKG</p>
+      </div>
+      <form id="loginForm" onsubmit="handleLogin(event)">
+       <div class="mb-5"><label for="loginUser" class="block text-sm font-semibold text-slate-600 mb-2">User</label>
+        <div class="relative"><i data-lucide="user" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i> <input type="text" id="loginUser" class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition text-sm" placeholder="Masukkan username" required>
+        </div>
+       </div>
+       <div class="mb-6"><label for="loginPass" class="block text-sm font-semibold text-slate-600 mb-2">Password</label>
+        <div class="relative"><i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i> <input type="password" id="loginPass" class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition text-sm" placeholder="Masukkan password" required>
+        </div>
+       </div>
+       <div id="loginError" class="hidden mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium"></div><button type="submit" class="btn-primary w-full text-white py-3 rounded-xl font-bold text-sm">Masuk</button>
+      </form><button onclick="showPage('landing')" class="w-full mt-4 text-sm text-slate-400 hover:text-navy-600 transition font-medium">← Kembali ke Beranda</button>
+     </div>
+    </div>
+   </div><!-- ==================== DASHBOARD SHELL ==================== -->
+   <div id="dashboardShell" class="w-full h-full hidden flex"><!-- SIDEBAR -->
+    <aside id="sidebar" class="w-64 flex-shrink-0 h-full overflow-y-auto flex flex-col" style="background: linear-gradient(180deg, #0f2155, #1a3691);">
+     <div class="p-5 flex items-center gap-3 border-b border-white/10">
+      <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"><i data-lucide="activity" class="w-5 h-5 text-ocean-300"></i>
+      </div>
+      <div>
+       <div class="text-white font-bold text-sm">
+        Monitoring CKG
+       </div>
+       <div class="text-ocean-300 text-xs">
+        Puskesmas Cibuntu
+       </div>
+      </div>
+     </div>
+     <nav class="flex-1 p-3 space-y-1" id="sidebarNav"><button onclick="showDashPage('dashboard')" class="sidebar-link active w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/90 text-sm font-medium" data-page="dashboard"> <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard </button> <button onclick="showDashPage('inputData')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="inputData"> <i data-lucide="file-plus" class="w-5 h-5"></i> Input Data CKG </button> <button onclick="showDashPage('uploadData')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="uploadData"> <i data-lucide="upload-cloud" class="w-5 h-5"></i> Upload Data CKG </button> <button onclick="showDashPage('dataPemeriksaan')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="dataPemeriksaan"> <i data-lucide="database" class="w-5 h-5"></i> Data Pemeriksaan </button> <button onclick="showDashPage('rekapitulasi')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="rekapitulasi"> <i data-lucide="bar-chart-2" class="w-5 h-5"></i> Rekapitulasi </button> <button onclick="showDashPage('laporan')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="laporan"> <i data-lucide="file-text" class="w-5 h-5"></i> Laporan </button> <button onclick="showDashPage('pengaturan')" class="sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/70 text-sm font-medium" data-page="pengaturan"> <i data-lucide="settings" class="w-5 h-5"></i> Pengaturan </button>
+     </nav>
+     <div class="p-4 border-t border-white/10">
+      <div class="bg-white/10 rounded-xl p-3 text-center">
+       <p class="text-ocean-200 text-xs">Tahun Kegiatan</p>
+       <p class="text-white font-bold text-lg" id="sidebarYear">2025</p>
+      </div>
+     </div>
+    </aside><!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden"><!-- TOP NAV -->
+     <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-3"><button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg hover:bg-slate-100"> <i data-lucide="menu" class="w-5 h-5 text-slate-600"></i> </button>
+       <h1 class="text-lg font-bold text-navy-800" id="pageTitle">Dashboard</h1>
+      </div>
+      <div class="flex items-center gap-3">
+       <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
+        <div class="w-8 h-8 rounded-full stat-gradient-1 flex items-center justify-center"><i data-lucide="user" class="w-4 h-4 text-white"></i>
+        </div><span class="text-sm font-semibold text-slate-700 hidden sm:block">Admin</span>
+       </div><button onclick="handleLogout()" class="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition" title="Logout"> <i data-lucide="log-out" class="w-5 h-5"></i> </button>
+      </div>
+     </header><!-- SCROLLABLE CONTENT -->
+     <main class="flex-1 overflow-y-auto p-6 bg-slate-50" id="mainContent"><!-- ===== DASHBOARD PAGE ===== -->
+      <div id="page-dashboard" class="dash-page fade-in">
+       <div class="mb-6">
+        <p class="text-slate-400 text-sm">Selamat datang di Sistem Monitoring CKG</p>
+       </div><!-- Stat cards -->
+       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center justify-between mb-3"><span class="text-sm text-slate-500">Pemeriksaan Hari Ini</span>
+          <div class="w-10 h-10 rounded-xl stat-gradient-1 flex items-center justify-center">
+           <i data-lucide="calendar" class="w-5 h-5 text-white"></i>
+          </div>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="statToday">0</p>
+         <p class="text-xs text-emerald-500 mt-1">+12% dari kemarin</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center justify-between mb-3"><span class="text-sm text-slate-500">Pemeriksaan Bulan Ini</span>
+          <div class="w-10 h-10 rounded-xl stat-gradient-2 flex items-center justify-center">
+           <i data-lucide="calendar-range" class="w-5 h-5 text-white"></i>
+          </div>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="statMonth">0</p>
+         <p class="text-xs text-emerald-500 mt-1">+8% dari bulan lalu</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center justify-between mb-3"><span class="text-sm text-slate-500">Total Capaian</span>
+          <div class="w-10 h-10 rounded-xl stat-gradient-3 flex items-center justify-center">
+           <i data-lucide="trending-up" class="w-5 h-5 text-white"></i>
+          </div>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="statTotal">0</p>
+         <p class="text-xs text-slate-400 mt-1">dari seluruh data</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center justify-between mb-3"><span class="text-sm text-slate-500">Target Program</span>
+          <div class="w-10 h-10 rounded-xl stat-gradient-4 flex items-center justify-center">
+           <i data-lucide="target" class="w-5 h-5 text-white"></i>
+          </div>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="statTarget">5.000</p>
+         <p class="text-xs text-slate-400 mt-1">orang</p>
+        </div>
+       </div><!-- Charts -->
+       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-semibold text-navy-700 mb-4">Pemeriksaan Harian (7 Hari Terakhir)</h3>
+         <canvas id="dashDailyChart" height="200"></canvas>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-semibold text-navy-700 mb-4">Progress Bulanan</h3>
+         <canvas id="dashMonthlyChart" height="200"></canvas>
+        </div>
+       </div><!-- Recent table -->
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <h3 class="font-semibold text-navy-700 mb-4">Data Pemeriksaan Terbaru</h3>
+        <div class="overflow-x-auto">
+         <table class="w-full text-sm">
+          <thead>
+           <tr class="border-b border-slate-200">
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Tanggal</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Nama</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">NIK</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Tgl Lahir</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Umur</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">JK</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Kelurahan</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Jenis Pemeriksaan</th>
+           </tr>
+          </thead>
+          <tbody id="dashRecentTable"></tbody>
+         </table>
+        </div>
+        <p id="dashRecentEmpty" class="text-slate-400 text-sm text-center py-8 hidden">Belum ada data pemeriksaan</p>
+       </div>
+      </div><!-- ===== INPUT DATA PAGE ===== -->
+      <div id="page-inputData" class="dash-page hidden fade-in">
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-4xl">
+        <h3 class="font-bold text-navy-800 text-lg mb-6 flex items-center gap-2"><i data-lucide="file-plus" class="w-5 h-5 text-blue-500"></i> Form Input Data CKG</h3>
+        <form id="inputForm" onsubmit="handleSaveData(event)">
+         <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+          <div><label for="fTanggal" class="block text-sm font-semibold text-slate-600 mb-1.5">Tanggal Pemeriksaan</label> <input type="date" id="fTanggal" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required>
+          </div>
+          <div><label for="fNama" class="block text-sm font-semibold text-slate-600 mb-1.5">Nama</label> <input type="text" id="fNama" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" placeholder="Nama lengkap" required>
+          </div>
+          <div><label for="fNIK" class="block text-sm font-semibold text-slate-600 mb-1.5">NIK</label> <input type="text" id="fNIK" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" placeholder="16 digit NIK" maxlength="16" required>
+          </div>
+          <div><label for="fTglLahir" class="block text-sm font-semibold text-slate-600 mb-1.5">Tanggal Lahir</label> <input type="date" id="fTglLahir" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required onchange="calcAge()">
+          </div>
+          <div><label class="block text-sm font-semibold text-slate-600 mb-1.5">Umur (Otomatis)</label>
+           <div class="flex gap-2"><input type="text" id="fUmurThn" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm" placeholder="Thn" readonly> <input type="text" id="fUmurBln" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm" placeholder="Bln" readonly> <input type="text" id="fUmurHri" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm" placeholder="Hari" readonly>
+           </div>
+          </div>
+          <div><label for="fJK" class="block text-sm font-semibold text-slate-600 mb-1.5">Jenis Kelamin</label> <select id="fJK" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required> <option value="">Pilih</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option> </select>
+          </div>
+          <div><label for="fKelurahan" class="block text-sm font-semibold text-slate-600 mb-1.5">Kelurahan</label> <select id="fKelurahan" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required> <option value="">Pilih</option><option>Caringin</option><option>Cibuntu</option><option>Warung Muncang</option><option>Luar Wilayah</option> </select>
+          </div>
+          <div><label for="fKehadiran" class="block text-sm font-semibold text-slate-600 mb-1.5">Status Kehadiran</label> <select id="fKehadiran" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required> <option value="">Pilih</option><option>Belum Hadir</option><option>Tidak Hadir</option><option>Sudah Hadir</option> </select>
+          </div>
+          <div><label for="fSkrining" class="block text-sm font-semibold text-slate-600 mb-1.5">Status Skrining Mandiri</label> <select id="fSkrining" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required> <option value="">Pilih</option><option>Belum Lengkap</option><option>Lengkap</option> </select>
+          </div>
+          <div><label for="fPelayanan" class="block text-sm font-semibold text-slate-600 mb-1.5">Status Pelayanan</label> <select id="fPelayanan" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" required> <option value="">Pilih</option><option>Belum Pemeriksaan</option><option>Sedang Pemeriksaan</option><option>Selesai Pemeriksaan</option> </select>
+          </div>
+          <div><label for="fJenisPemeriksaan" class="block text-sm font-semibold text-slate-600 mb-1.5">Jenis Pemeriksaan</label> <input type="text" id="fJenisPemeriksaan" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm" placeholder="Contoh: Pemeriksaan Umum">
+          </div>
+         </div>
+         <div class="flex flex-wrap gap-3"><button type="submit" id="btnSave" class="btn-primary text-white px-6 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2"> <i data-lucide="save" class="w-4 h-4"></i> <span id="btnSaveText">Simpan Data</span> </button> <button type="button" onclick="resetForm()" class="px-6 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-2"> <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset </button>
+         </div><input type="hidden" id="editRecordId" value="">
+        </form>
+       </div>
+      </div><!-- ===== UPLOAD DATA PAGE ===== -->
+      <div id="page-uploadData" class="dash-page hidden fade-in">
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-3xl">
+        <h3 class="font-bold text-navy-800 text-lg mb-6 flex items-center gap-2"><i data-lucide="upload-cloud" class="w-5 h-5 text-blue-500"></i> Upload Data CKG</h3>
+        <div id="uploadZone" class="upload-zone rounded-2xl p-12 text-center cursor-pointer" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault(); this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleFileDrop(event)">
+         <div class="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4"><i data-lucide="upload" class="w-8 h-8 text-blue-500"></i>
+         </div>
+         <p class="text-slate-700 font-semibold mb-1">Drag &amp; drop file di sini</p>
+         <p class="text-slate-400 text-sm mb-4">atau klik untuk memilih file</p><span class="inline-block bg-blue-50 text-blue-600 text-xs font-semibold px-3 py-1.5 rounded-lg">Excel (.xlsx) / CSV (.csv)</span> <input type="file" id="fileInput" accept=".xlsx,.csv" class="hidden" onchange="handleFileSelect(event)">
+        </div>
+        <div id="uploadFileInfo" class="hidden mt-4 p-4 bg-slate-50 rounded-xl flex items-center justify-between">
+         <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+           <i data-lucide="file-check" class="w-5 h-5 text-emerald-500"></i>
+          </div>
+          <div>
+           <p class="text-sm font-semibold text-slate-700" id="uploadFileName">-</p>
+           <p class="text-xs text-slate-400" id="uploadFileSize">-</p>
+          </div>
+         </div><button onclick="clearUpload()" class="text-red-400 hover:text-red-600 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <p class="text-slate-400 text-xs mt-4">* Format file harus sesuai template. Pastikan kolom: Tanggal, Nama, NIK, Tanggal Lahir, Jenis Kelamin, Kelurahan, Status Kehadiran, Status Skrining, Status Pelayanan.</p>
+       </div>
+      </div><!-- ===== DATA PEMERIKSAAN PAGE ===== -->
+      <div id="page-dataPemeriksaan" class="dash-page hidden fade-in">
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+         <h3 class="font-bold text-navy-800 text-lg flex items-center gap-2"><i data-lucide="database" class="w-5 h-5 text-blue-500"></i> Data Pemeriksaan</h3>
+         <div class="flex flex-wrap gap-3">
+          <div class="relative"><i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i> <input type="text" id="searchData" class="pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Cari nama/NIK..." oninput="renderDataTable()">
+          </div><select id="filterKelurahan" class="px-4 py-2 rounded-xl border border-slate-200 text-sm focus:border-blue-500 outline-none" onchange="renderDataTable()"> <option value="">Semua Kelurahan</option><option>Caringin</option><option>Cibuntu</option><option>Warung Muncang</option><option>Luar Wilayah</option> </select>
+         </div>
+        </div>
+        <div class="overflow-x-auto">
+         <table class="w-full text-sm">
+          <thead>
+           <tr class="border-b border-slate-200">
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Tanggal</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Nama</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">NIK</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Umur</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">JK</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Kelurahan</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Kehadiran</th>
+            <th class="text-left py-3 px-3 text-slate-500 font-semibold">Aksi</th>
+           </tr>
+          </thead>
+          <tbody id="dataTableBody"></tbody>
+         </table>
+        </div>
+        <p id="dataTableEmpty" class="text-slate-400 text-sm text-center py-8 hidden">Belum ada data</p><!-- Pagination -->
+        <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+         <p class="text-xs text-slate-400" id="paginationInfo">-</p>
+         <div class="flex gap-1" id="paginationBtns"></div>
+        </div>
+       </div><!-- Delete confirmation modal -->
+       <div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+         <div class="text-center">
+          <div class="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4"><i data-lucide="trash-2" class="w-7 h-7 text-red-500"></i>
+          </div>
+          <h4 class="font-bold text-navy-800 text-lg mb-2">Hapus Data?</h4>
+          <p class="text-slate-500 text-sm mb-6">Data yang dihapus tidak dapat dikembalikan.</p>
+          <div class="flex gap-3"><button onclick="closeDeleteModal()" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">Batal</button> <button onclick="confirmDelete()" id="btnConfirmDelete" class="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition">Hapus</button>
+          </div>
+         </div>
+        </div>
+       </div>
+      </div><!-- ===== REKAPITULASI PAGE ===== -->
+      <div id="page-rekapitulasi" class="dash-page hidden fade-in">
+       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 rounded-xl stat-gradient-1 flex items-center justify-center">
+           <i data-lucide="users" class="w-5 h-5 text-white"></i>
+          </div><span class="text-sm text-slate-500">Total Pemeriksaan</span>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="rekapTotal">0</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 rounded-xl stat-gradient-2 flex items-center justify-center">
+           <i data-lucide="map-pin" class="w-5 h-5 text-white"></i>
+          </div><span class="text-sm text-slate-500">Total Kelurahan</span>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="rekapKelurahan">0</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 card-hover">
+         <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 rounded-xl stat-gradient-3 flex items-center justify-center">
+           <i data-lucide="clock" class="w-5 h-5 text-white"></i>
+          </div><span class="text-sm text-slate-500">Rata-rata Harian</span>
+         </div>
+         <p class="text-2xl font-extrabold text-navy-800" id="rekapAvg">0</p>
+        </div>
+       </div>
+       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-semibold text-navy-700 mb-4">Pemeriksaan per Kelurahan</h3>
+         <canvas id="rekapKelChart" height="250"></canvas>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-semibold text-navy-700 mb-4">Perbandingan Bulanan</h3>
+         <canvas id="rekapMonthChart" height="250"></canvas>
+        </div>
+       </div>
+      </div><!-- ===== LAPORAN PAGE ===== -->
+      <div id="page-laporan" class="dash-page hidden fade-in">
+       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 max-w-3xl">
+        <h3 class="font-bold text-navy-800 text-lg mb-6 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-blue-500"></i> Export Laporan</h3>
+        <p class="text-slate-500 text-sm mb-6">Download data pemeriksaan dalam berbagai format.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4"><button onclick="exportData('xlsx')" class="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition card-hover">
+          <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
+           <i data-lucide="file-spreadsheet" class="w-7 h-7 text-emerald-600"></i>
+          </div><span class="font-semibold text-slate-700 text-sm">Download Excel</span> <span class="text-xs text-slate-400">.xlsx</span> </button> <button onclick="exportData('csv')" class="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition card-hover">
+          <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+           <i data-lucide="file-text" class="w-7 h-7 text-blue-600"></i>
+          </div><span class="font-semibold text-slate-700 text-sm">Download CSV</span> <span class="text-xs text-slate-400">.csv</span> </button> <button onclick="exportData('pdf')" class="flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-slate-200 hover:border-red-400 hover:bg-red-50 transition card-hover">
+          <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
+           <i data-lucide="file-check" class="w-7 h-7 text-red-600"></i>
+          </div><span class="font-semibold text-slate-700 text-sm">Download PDF</span> <span class="text-xs text-slate-400">.pdf</span> </button>
+        </div>
+       </div>
+      </div><!-- ===== PENGATURAN PAGE ===== -->
+      <div id="page-pengaturan" class="dash-page hidden fade-in">
+       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl"><!-- Manajemen User -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-bold text-navy-800 mb-4 flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-blue-500"></i> Manajemen User</h3>
+         <div class="space-y-3">
+          <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+           <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full stat-gradient-1 flex items-center justify-center">
+             <i data-lucide="user" class="w-4 h-4 text-white"></i>
+            </div>
+            <div>
+             <p class="text-sm font-semibold text-slate-700">Admin</p>
+             <p class="text-xs text-slate-400">Administrator</p>
+            </div>
+           </div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">Aktif</span>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+           <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full stat-gradient-2 flex items-center justify-center">
+             <i data-lucide="user" class="w-4 h-4 text-white"></i>
+            </div>
+            <div>
+             <p class="text-sm font-semibold text-slate-700">Petugas</p>
+             <p class="text-xs text-slate-400">Operator</p>
+            </div>
+           </div><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-semibold">Aktif</span>
+          </div>
+         </div>
+        </div><!-- Tahun Kegiatan -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-bold text-navy-800 mb-4 flex items-center gap-2"><i data-lucide="calendar" class="w-5 h-5 text-blue-500"></i> Tahun Kegiatan</h3>
+         <div class="flex items-center gap-3"><input type="number" id="settingYear" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-blue-500 outline-none" value="2025"> <button onclick="saveYear()" class="btn-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap">Simpan</button>
+         </div>
+        </div><!-- Target -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-bold text-navy-800 mb-4 flex items-center gap-2"><i data-lucide="target" class="w-5 h-5 text-blue-500"></i> Target Program</h3>
+         <div class="flex items-center gap-3"><input type="number" id="settingTarget" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-blue-500 outline-none" value="5000"> <button onclick="saveTarget()" class="btn-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap">Simpan</button>
+         </div>
+        </div><!-- Kelompok Usia -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+         <h3 class="font-bold text-navy-800 mb-4 flex items-center gap-2"><i data-lucide="layers" class="w-5 h-5 text-blue-500"></i> Kelompok Usia</h3>
+         <div class="space-y-2">
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl text-sm">
+           <span class="w-3 h-3 rounded-full bg-blue-400"></span> &lt; 1 Tahun
+          </div>
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl text-sm">
+           <span class="w-3 h-3 rounded-full bg-emerald-400"></span> 1 - 6 Tahun
+          </div>
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl text-sm">
+           <span class="w-3 h-3 rounded-full bg-amber-400"></span> 7 - 17 Tahun
+          </div>
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl text-sm">
+           <span class="w-3 h-3 rounded-full bg-purple-400"></span> 18 - 59 Tahun
+          </div>
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl text-sm">
+           <span class="w-3 h-3 rounded-full bg-red-400"></span> &gt; 60 Tahun
+          </div>
+         </div>
+        </div>
+       </div>
+      </div>
+     </main>
+    </div>
+   </div>
+  </div>
+lucide.createIcons();
+  <!-- Semua script dan style sudah dipisahkan ke file style.css dan app.js untuk static hosting Vercel -->
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dc874b9c4318a9a',t:'MTc3MzU0NTU5OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
