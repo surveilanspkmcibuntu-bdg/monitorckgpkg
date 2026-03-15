@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistem Monitoring CKG - Puskesmas Cibuntu</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <script>
 tailwind.config = {
   theme: {
     extend: {
@@ -18,6 +25,7 @@ tailwind.config = {
   }
 }
 </script>
+  <style>
 html, body { height: 100%; margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
 body { overflow: hidden; }
 .app-root { height: 100%; width: 100%; overflow: auto; }
@@ -58,12 +66,7 @@ body { overflow: hidden; }
 input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
 .table-row:hover { background: #f8fafc; }
 </style>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="app.js"></script>
+  <style>body { box-sizing: border-box; }</style>
  </head>
  <body class="h-full bg-slate-50">
   <div class="app-root" id="app"><!-- TOAST CONTAINER -->
@@ -512,7 +515,571 @@ input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
     </div>
    </div>
   </div>
+  <script>
+// ===== GLOBAL STATE =====
+let allData = [];
+let currentPage = 1;
+const PAGE_SIZE = 10;
+let deleteTargetRecord = null;
+let editingRecord = null;
+let programTarget = 5000;
+let activityYear = new Date().getFullYear();
+let chartInstances = {};
+
+// ===== ELEMENT SDK INIT =====
+const defaultConfig = {
+  dashboard_title: 'Monitoring Capaian Program Cek Kesehatan Gratis (CKG)',
+  institution_name: 'UPTD Puskesmas Cibuntu',
+  background_color: '#f8fafc',
+  surface_color: '#ffffff',
+  text_color: '#0f2155',
+  primary_action_color: '#1e40af',
+  secondary_action_color: '#059669'
+};
+
+function applyConfig(config) {
+  const bg = config.background_color || defaultConfig.background_color;
+  const surface = config.surface_color || defaultConfig.surface_color;
+  const text = config.text_color || defaultConfig.text_color;
+  const primary = config.primary_action_color || defaultConfig.primary_action_color;
+  const secondary = config.secondary_action_color || defaultConfig.secondary_action_color;
+  const title = config.dashboard_title || defaultConfig.dashboard_title;
+  const inst = config.institution_name || defaultConfig.institution_name;
+  const font = config.font_family || 'Plus Jakarta Sans';
+  const fontSize = config.font_size || 16;
+
+  document.body.style.backgroundColor = bg;
+  document.querySelectorAll('.bg-white').forEach(el => el.style.backgroundColor = surface);
+  document.querySelectorAll('.text-navy-800, .text-navy-700').forEach(el => el.style.color = text);
+
+  const heroEl = document.getElementById('heroTitle');
+  if (heroEl) heroEl.textContent = title;
+  const heroSub = document.getElementById('heroSubtitle');
+  if (heroSub) heroSub.textContent = inst;
+
+  document.body.style.fontFamily = `${font}, Plus Jakarta Sans, sans-serif`;
+  document.body.style.fontSize = `${fontSize}px`;
+  document.querySelectorAll('h1,h2,h3').forEach(el => {
+    el.style.fontFamily = `${font}, Plus Jakarta Sans, sans-serif`;
+  });
+}
+
+if (window.elementSdk) {
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => { applyConfig(config); },
+    mapToCapabilities: (config) => ({
+      recolorables: [
+        { get: () => config.background_color || defaultConfig.background_color, set: (v) => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); }},
+        { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); }},
+        { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); }},
+        { get: () => config.primary_action_color || defaultConfig.primary_action_color, set: (v) => { config.primary_action_color = v; window.elementSdk.setConfig({ primary_action_color: v }); }},
+        { get: () => config.secondary_action_color || defaultConfig.secondary_action_color, set: (v) => { config.secondary_action_color = v; window.elementSdk.setConfig({ secondary_action_color: v }); }}
+      ],
+      borderables: [],
+      fontEditable: {
+        get: () => config.font_family || defaultConfig.font_family || 'Plus Jakarta Sans',
+        set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+      },
+      fontSizeable: {
+        get: () => config.font_size || 16,
+        set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+      }
+    }),
+    mapToEditPanelValues: (config) => new Map([
+      ['dashboard_title', config.dashboard_title || defaultConfig.dashboard_title],
+      ['institution_name', config.institution_name || defaultConfig.institution_name]
+    ])
+  });
+}
+
+// ===== DATA SDK INIT =====
+const dataHandler = {
+  onDataChanged(data) {
+    allData = data;
+    updateDashboardStats();
+    renderDataTable();
+    updateDashRecentTable();
+    updateRekapPage();
+    updateLandingStats();
+  }
+};
+
+(async () => {
+  if (window.dataSdk) {
+    const result = await window.dataSdk.init(dataHandler);
+    if (!result.isOk) console.error('Data SDK init failed');
+  }
+})();
+
+// ===== TOAST =====
+function showToast(msg, type = 'success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ===== AGE CALCULATOR =====
+function calcAge() {
+  const dob = document.getElementById('fTglLahir').value;
+  if (!dob) return;
+  const bd = new Date(dob);
+  const now = new Date();
+  let y = now.getFullYear() - bd.getFullYear();
+  let m = now.getMonth() - bd.getMonth();
+  let d = now.getDate() - bd.getDate();
+  if (d < 0) { m--; d += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+  if (m < 0) { y--; m += 12; }
+  document.getElementById('fUmurThn').value = y + ' Thn';
+  document.getElementById('fUmurBln').value = m + ' Bln';
+  document.getElementById('fUmurHri').value = d + ' Hari';
+}
+
+function getAge(dobStr) {
+  if (!dobStr) return '-';
+  const bd = new Date(dobStr);
+  const now = new Date();
+  let y = now.getFullYear() - bd.getFullYear();
+  let m = now.getMonth() - bd.getMonth();
+  let d = now.getDate() - bd.getDate();
+  if (d < 0) { m--; d += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+  if (m < 0) { y--; m += 12; }
+  return `${y}T ${m}B ${d}H`;
+}
+
+// ===== PAGE NAVIGATION =====
+function showPage(page) {
+  document.getElementById('landingPage').classList.toggle('hidden', page !== 'landing');
+  document.getElementById('loginPage').classList.toggle('hidden', page !== 'login');
+  document.getElementById('dashboardShell').classList.toggle('hidden', page !== 'dashboard');
+  if (page === 'landing') { initLandingCharts(); updateLandingStats(); }
+  if (page === 'dashboard') { showDashPage('dashboard'); }
+  lucide.createIcons();
+}
+
+function showDashPage(id) {
+  document.querySelectorAll('.dash-page').forEach(p => p.classList.add('hidden'));
+  const target = document.getElementById('page-' + id);
+  if (target) { target.classList.remove('hidden'); target.classList.add('fade-in'); }
+  document.querySelectorAll('#sidebarNav .sidebar-link').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === id);
+    b.classList.toggle('text-white/90', b.dataset.page === id);
+    b.classList.toggle('text-white/70', b.dataset.page !== id);
+  });
+  const titles = { dashboard:'Dashboard', inputData:'Input Data CKG', uploadData:'Upload Data CKG', dataPemeriksaan:'Data Pemeriksaan', rekapitulasi:'Rekapitulasi', laporan:'Laporan', pengaturan:'Pengaturan' };
+  document.getElementById('pageTitle').textContent = titles[id] || 'Dashboard';
+  if (id === 'dashboard') initDashCharts();
+  if (id === 'rekapitulasi') initRekapCharts();
+  lucide.createIcons();
+}
+
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  s.classList.toggle('hidden');
+}
+
+// ===== LOGIN/LOGOUT =====
+function handleLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('loginUser').value;
+  const p = document.getElementById('loginPass').value;
+  if (u === 'admin' && p === 'admin') {
+    showPage('dashboard');
+    showToast('Login berhasil!');
+  } else {
+    const err = document.getElementById('loginError');
+    err.classList.remove('hidden');
+    err.textContent = 'Username atau password salah. Gunakan admin/admin.';
+  }
+}
+function handleLogout() { showPage('landing'); showToast('Berhasil logout', 'info'); }
+
+// ===== SAVE DATA =====
+async function handleSaveData(e) {
+  e.preventDefault();
+  if (!window.dataSdk) {
+    showToast('Data SDK tidak tersedia', 'error');
+    return;
+  }
+  if (allData.length >= 999 && !editingRecord) {
+    showToast('Batas maksimum 999 data tercapai!', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnSave');
+  const btnText = document.getElementById('btnSaveText');
+  btn.disabled = true;
+  btnText.textContent = 'Menyimpan...';
+
+  const record = {
+    tanggal_pemeriksaan: document.getElementById('fTanggal').value,
+    nama: document.getElementById('fNama').value,
+    nik: document.getElementById('fNIK').value,
+    tanggal_lahir: document.getElementById('fTglLahir').value,
+    jenis_kelamin: document.getElementById('fJK').value,
+    kelurahan: document.getElementById('fKelurahan').value,
+    status_kehadiran: document.getElementById('fKehadiran').value,
+    status_skrining: document.getElementById('fSkrining').value,
+    status_pelayanan: document.getElementById('fPelayanan').value,
+    jenis_pemeriksaan: document.getElementById('fJenisPemeriksaan').value || 'Pemeriksaan Umum'
+  };
+
+  let result;
+  if (editingRecord) {
+    const updated = { ...editingRecord, ...record };
+    result = await window.dataSdk.update(updated);
+  } else {
+    result = await window.dataSdk.create(record);
+  }
+
+  btn.disabled = false;
+  btnText.textContent = 'Simpan Data';
+
+  if (result.isOk) {
+    showToast(editingRecord ? 'Data berhasil diperbarui!' : 'Data berhasil disimpan!');
+    resetForm();
+  } else {
+    showToast('Gagal menyimpan data', 'error');
+  }
+}
+
+function resetForm() {
+  document.getElementById('inputForm').reset();
+  document.getElementById('fUmurThn').value = '';
+  document.getElementById('fUmurBln').value = '';
+  document.getElementById('fUmurHri').value = '';
+  document.getElementById('editRecordId').value = '';
+  document.getElementById('btnSaveText').textContent = 'Simpan Data';
+  editingRecord = null;
+}
+
+function editRecord(backendId) {
+  const rec = allData.find(r => r.__backendId === backendId);
+  if (!rec) return;
+  editingRecord = rec;
+  document.getElementById('fTanggal').value = rec.tanggal_pemeriksaan || '';
+  document.getElementById('fNama').value = rec.nama || '';
+  document.getElementById('fNIK').value = rec.nik || '';
+  document.getElementById('fTglLahir').value = rec.tanggal_lahir || '';
+  calcAge();
+  document.getElementById('fJK').value = rec.jenis_kelamin || '';
+  document.getElementById('fKelurahan').value = rec.kelurahan || '';
+  document.getElementById('fKehadiran').value = rec.status_kehadiran || '';
+  document.getElementById('fSkrining').value = rec.status_skrining || '';
+  document.getElementById('fPelayanan').value = rec.status_pelayanan || '';
+  document.getElementById('fJenisPemeriksaan').value = rec.jenis_pemeriksaan || '';
+  document.getElementById('btnSaveText').textContent = 'Update Data';
+  showDashPage('inputData');
+}
+
+// ===== DELETE =====
+function requestDelete(backendId) {
+  deleteTargetRecord = allData.find(r => r.__backendId === backendId);
+  document.getElementById('deleteModal').classList.remove('hidden');
+  lucide.createIcons();
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.add('hidden');
+  deleteTargetRecord = null;
+}
+async function confirmDelete() {
+  if (!window.dataSdk) {
+    showToast('Data SDK tidak tersedia', 'error');
+    return;
+  }
+  if (!deleteTargetRecord) return;
+  const btn = document.getElementById('btnConfirmDelete');
+  btn.disabled = true; btn.textContent = 'Menghapus...';
+  const result = await window.dataSdk.delete(deleteTargetRecord);
+  btn.disabled = false; btn.textContent = 'Hapus';
+  closeDeleteModal();
+  if (result.isOk) showToast('Data berhasil dihapus');
+  else showToast('Gagal menghapus data', 'error');
+}
+
+// ===== DATA TABLE =====
+function renderDataTable() {
+  const search = (document.getElementById('searchData')?.value || '').toLowerCase();
+  const filter = document.getElementById('filterKelurahan')?.value || '';
+  let filtered = allData.filter(r => {
+    const matchSearch = !search || (r.nama||'').toLowerCase().includes(search) || (r.nik||'').includes(search);
+    const matchFilter = !filter || r.kelurahan === filter;
+    return matchSearch && matchFilter;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageData = filtered.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('dataTableBody');
+  const empty = document.getElementById('dataTableEmpty');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    document.getElementById('paginationInfo').textContent = '-';
+    document.getElementById('paginationBtns').innerHTML = '';
+    return;
+  } else {
+    empty.classList.add('hidden');
+  }
+
+  tbody.innerHTML = pageData.map(r => `
+    <tr class="table-row border-b border-slate-100">
+      <td class="py-3 px-3 text-slate-700">${r.tanggal_pemeriksaan||'-'}</td>
+      <td class="py-3 px-3 font-medium text-slate-800">${r.nama||'-'}</td>
+      <td class="py-3 px-3 text-slate-600 font-mono text-xs">${r.nik||'-'}</td>
+      <td class="py-3 px-3 text-slate-600">${getAge(r.tanggal_lahir)}</td>
+      <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-md text-xs font-semibold ${r.jenis_kelamin==='Laki-laki'?'bg-blue-50 text-blue-700':'bg-pink-50 text-pink-700'}">${r.jenis_kelamin || '-'}</span></td>
+      <td class="py-3 px-3 text-slate-600">${r.kelurahan||'-'}</td>
+      <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-md text-xs font-semibold ${r.status_kehadiran==='Sudah Hadir'?'bg-emerald-50 text-emerald-700':r.status_kehadiran==='Tidak Hadir'?'bg-red-50 text-red-700':'bg-amber-50 text-amber-700'}">${r.status_kehadiran || '-'}</span></td>
+      <td class="py-3 px-3">
+        <button onclick="editRecord('${r.__backendId}')" class="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition mr-1" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></button>
+        <button onclick="requestDelete('${r.__backendId}')" class="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition" title="Hapus"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('paginationInfo').textContent = filtered.length > 0 ? `Menampilkan ${start+1}-${Math.min(start+PAGE_SIZE, filtered.length)} dari ${filtered.length} data` : '-';
+
+  const pBtns = document.getElementById('paginationBtns');
+  pBtns.innerHTML = '';
+  for (let i = 1; i <= totalPages; i++) {
+    const b = document.createElement('button');
+    b.className = `px-3 py-1.5 rounded-lg text-xs font-semibold transition ${i===currentPage ? 'btn-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+    b.textContent = i;
+    b.onclick = () => { currentPage = i; renderDataTable(); };
+    pBtns.appendChild(b);
+  }
+  lucide.createIcons();
+}
+
+// ===== DASHBOARD STATS =====
+function updateDashboardStats() {
+  if (allData.length === 0) {
+    document.getElementById('statToday').textContent = '0';
+    document.getElementById('statMonth').textContent = '0';
+    document.getElementById('statTotal').textContent = '0';
+    document.getElementById('statTarget').textContent = programTarget.toLocaleString('id-ID');
+    return;
+  }
+  const today = new Date().toISOString().split('T')[0];
+  const month = today.substring(0, 7);
+  const todayCount = allData.filter(r => r.tanggal_pemeriksaan === today).length;
+  const monthCount = allData.filter(r => (r.tanggal_pemeriksaan||'').startsWith(month)).length;
+  document.getElementById('statToday').textContent = todayCount.toLocaleString('id-ID');
+  document.getElementById('statMonth').textContent = monthCount.toLocaleString('id-ID');
+  document.getElementById('statTotal').textContent = allData.length.toLocaleString('id-ID');
+  document.getElementById('statTarget').textContent = programTarget.toLocaleString('id-ID');
+}
+
+function updateDashRecentTable() {
+  const recent = [...allData].sort((a, b) => (b.tanggal_pemeriksaan||'').localeCompare(a.tanggal_pemeriksaan||'')).slice(0, 5);
+  const tbody = document.getElementById('dashRecentTable');
+  const empty = document.getElementById('dashRecentEmpty');
+  if (recent.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); } else { empty.classList.add('hidden'); }
+  tbody.innerHTML = recent.map(r => `
+    <tr class="table-row border-b border-slate-100">
+      <td class="py-2.5 px-3 text-slate-700 text-xs">${r.tanggal_pemeriksaan||'-'}</td>
+      <td class="py-2.5 px-3 font-medium text-slate-800 text-xs">${r.nama||'-'}</td>
+      <td class="py-2.5 px-3 text-slate-600 font-mono text-xs">${r.nik||'-'}</td>
+      <td class="py-2.5 px-3 text-slate-600 text-xs">${r.tanggal_lahir||'-'}</td>
+      <td class="py-2.5 px-3 text-slate-600 text-xs">${getAge(r.tanggal_lahir)}</td>
+      <td class="py-2.5 px-3 text-xs"><span class="px-1.5 py-0.5 rounded text-xs font-semibold ${r.jenis_kelamin==='Laki-laki'?'bg-blue-50 text-blue-700':'bg-pink-50 text-pink-700'}">${r.jenis_kelamin||'-'}</span></td>
+      <td class="py-2.5 px-3 text-slate-600 text-xs">${r.kelurahan||'-'}</td>
+      <td class="py-2.5 px-3 text-slate-600 text-xs">${r.jenis_pemeriksaan||'-'}</td>
+    </tr>
+  `).join('');
+}
+
+// ===== LANDING STATS =====
+function updateLandingStats() {
+  if (allData.length === 0) {
+    document.getElementById('landingTarget').textContent = programTarget.toLocaleString('id-ID');
+    document.getElementById('landingAttendance').textContent = '0';
+    document.getElementById('landingPercent').textContent = '0%';
+    document.getElementById('progressText').textContent = '0%';
+    document.getElementById('progressBarLanding').style.width = '0%';
+    return;
+  }
+  const attended = allData.filter(r => r.status_kehadiran === 'Sudah Hadir').length;
+  const pct = programTarget > 0 ? Math.round((allData.length / programTarget) * 100) : 0;
+  document.getElementById('landingTarget').textContent = programTarget.toLocaleString('id-ID');
+  document.getElementById('landingAttendance').textContent = attended.toLocaleString('id-ID');
+  document.getElementById('landingPercent').textContent = pct + '%';
+  document.getElementById('progressText').textContent = pct + '%';
+  document.getElementById('progressBarLanding').style.width = Math.min(pct, 100) + '%';
+}
+
+// ===== REKAP =====
+function updateRekapPage() {
+  document.getElementById('rekapTotal').textContent = allData.length.toLocaleString('id-ID');
+  const kelurahans = new Set(allData.map(r => r.kelurahan).filter(Boolean));
+  document.getElementById('rekapKelurahan').textContent = kelurahans.size;
+  const dates = new Set(allData.map(r => r.tanggal_pemeriksaan).filter(Boolean));
+  const avg = dates.size > 0 ? Math.round(allData.length / dates.size) : 0;
+  document.getElementById('rekapAvg').textContent = avg;
+}
+
+// ===== CHARTS =====
+const chartColors = { bar: 'rgba(30,64,175,0.8)', barBg: 'rgba(30,64,175,0.1)', line: 'rgba(5,150,105,0.8)', pie: ['#1e40af','#059669','#d97706','#7c3aed','#dc2626'] };
+
+function destroyChart(id) { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } }
+
+function initLandingCharts() {
+  // Monthly bar
+  destroyChart('landingBar');
+  const ctx1 = document.getElementById('landingBarChart');
+  if (!ctx1) return;
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const monthData = months.map((_, i) => {
+    const m = String(i+1).padStart(2,'0');
+    return allData.filter(r => (r.tanggal_pemeriksaan||'').substring(5,7) === m).length;
+  });
+  // Jika tidak ada data, tampilkan kosong
+  const barData = monthData.every(v => v === 0) ? [] : monthData;
+  chartInstances['landingBar'] = new Chart(ctx1, {
+    type:'bar', data:{ labels:months, datasets:[{ label:'Pemeriksaan', data:barData, backgroundColor:chartColors.bar, borderRadius:8 }]},
+    options:{ responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{beginAtZero:true, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }}
+  });
+
+  // Pie
+  destroyChart('landingPie');
+  const ctx2 = document.getElementById('landingPieChart');
+  if (!ctx2) return;
+  const kelCounts = {};
+  allData.forEach(r => { if (r.kelurahan) kelCounts[r.kelurahan] = (kelCounts[r.kelurahan]||0)+1; });
+  const hasKel = Object.keys(kelCounts).length > 0;
+  const pieLabels = hasKel ? Object.keys(kelCounts) : [];
+  const pieData = hasKel ? Object.values(kelCounts) : [];
+  chartInstances['landingPie'] = new Chart(ctx2, {
+    type:'doughnut', data:{ labels:pieLabels, datasets:[{ data:pieData, backgroundColor:chartColors.pie, borderWidth:2, borderColor:'#fff' }]},
+    options:{ responsive:true, plugins:{ legend:{ position:'bottom', labels:{padding:16, usePointStyle:true} }}}
+  });
+}
+
+function initDashCharts() {
+  destroyChart('dashDaily');
+  const ctx1 = document.getElementById('dashDailyChart');
+  if (!ctx1) return;
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    last7.push(d.toISOString().split('T')[0]);
+  }
+  const dailyData = last7.map(d => allData.filter(r => r.tanggal_pemeriksaan === d).length);
+  // Jika tidak ada data, tampilkan kosong
+  const showSample = dailyData.every(v => v === 0);
+  chartInstances['dashDaily'] = new Chart(ctx1, {
+    type:'line', data:{ labels:last7.map(d => d.substring(5)), datasets:[{ label:'Pemeriksaan', data:showSample?[]:dailyData, borderColor:chartColors.line, backgroundColor:'rgba(5,150,105,0.1)', fill:true, tension:0.4, pointRadius:4, pointBackgroundColor:chartColors.line }]},
+    options:{ responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{beginAtZero:true, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }}
+  });
+
+  destroyChart('dashMonthly');
+  const ctx2 = document.getElementById('dashMonthlyChart');
+  if (!ctx2) return;
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const monthData = months.map((_, i) => {
+    const m = String(i+1).padStart(2,'0');
+    return allData.filter(r => (r.tanggal_pemeriksaan||'').substring(5,7) === m).length;
+  });
+  const showSample2 = monthData.every(v => v === 0);
+  chartInstances['dashMonthly'] = new Chart(ctx2, {
+    type:'bar', data:{ labels:months, datasets:[{ label:'Pemeriksaan', data:showSample2?[]:monthData, backgroundColor:chartColors.bar, borderRadius:6 }]},
+    options:{ responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{beginAtZero:true, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }}
+  });
+}
+
+function initRekapCharts() {
+  destroyChart('rekapKel');
+  const ctx1 = document.getElementById('rekapKelChart');
+  if (!ctx1) return;
+  const kelCounts = {};
+  allData.forEach(r => { if (r.kelurahan) kelCounts[r.kelurahan] = (kelCounts[r.kelurahan]||0)+1; });
+  const hasK = Object.keys(kelCounts).length > 0;
+  chartInstances['rekapKel'] = new Chart(ctx1, {
+    type:'bar', data:{ labels:hasK?Object.keys(kelCounts):[], datasets:[{ label:'Pemeriksaan', data:hasK?Object.values(kelCounts):[], backgroundColor:chartColors.pie, borderRadius:8 }]},
+    options:{ responsive:true, indexAxis:'y', plugins:{ legend:{display:false} }, scales:{ x:{beginAtZero:true, grid:{color:'#f1f5f9'}}, y:{grid:{display:false}} }}
+  });
+
+  destroyChart('rekapMonth');
+  const ctx2 = document.getElementById('rekapMonthChart');
+  if (!ctx2) return;
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  const monthData = months.map((_, i) => {
+    const m = String(i+1).padStart(2,'0');
+    return allData.filter(r => (r.tanggal_pemeriksaan||'').substring(5,7) === m).length;
+  });
+  const s = monthData.every(v => v === 0);
+  chartInstances['rekapMonth'] = new Chart(ctx2, {
+    type:'line', data:{ labels:months, datasets:[{ label:'Pemeriksaan', data:s?[]:monthData, borderColor:chartColors.bar, backgroundColor:'rgba(30,64,175,0.1)', fill:true, tension:0.4 }]},
+    options:{ responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{beginAtZero:true, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }}
+  });
+}
+
+// ===== SETTINGS =====
+function saveYear() {
+  activityYear = parseInt(document.getElementById('settingYear').value) || new Date().getFullYear();
+  document.getElementById('sidebarYear').textContent = activityYear;
+  showToast('Tahun kegiatan berhasil disimpan');
+}
+function saveTarget() {
+  programTarget = parseInt(document.getElementById('settingTarget').value) || 5000;
+  updateDashboardStats();
+  updateLandingStats();
+  showToast('Target program berhasil disimpan');
+}
+
+// ===== FILE UPLOAD =====
+function handleFileDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) showFileInfo(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) showFileInfo(file);
+}
+function showFileInfo(file) {
+  document.getElementById('uploadFileInfo').classList.remove('hidden');
+  document.getElementById('uploadFileName').textContent = file.name;
+  document.getElementById('uploadFileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+  showToast('Import data dari file belum tersedia. Silakan input manual atau tunggu update berikutnya.', 'info');
+}
+function clearUpload() {
+  document.getElementById('uploadFileInfo').classList.add('hidden');
+  document.getElementById('fileInput').value = '';
+}
+
+// ===== EXPORT =====
+function exportData(format) {
+  if (allData.length === 0) { showToast('Tidak ada data untuk diexport', 'error'); return; }
+  if (format === 'csv') {
+    const headers = ['Tanggal','Nama','NIK','Tanggal Lahir','Umur','Jenis Kelamin','Kelurahan','Status Kehadiran','Status Skrining','Status Pelayanan','Jenis Pemeriksaan'];
+    const rows = allData.map(r => [r.tanggal_pemeriksaan, r.nama, r.nik, r.tanggal_lahir, getAge(r.tanggal_lahir), r.jenis_kelamin, r.kelurahan, r.status_kehadiran, r.status_skrining, r.status_pelayanan, r.jenis_pemeriksaan]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c||''}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `data_ckg_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('File CSV berhasil didownload');
+  } else if (format === 'xlsx' || format === 'pdf') {
+    showToast(`Fitur export ${format.toUpperCase()} belum tersedia. Silakan gunakan export CSV.`, 'info');
+  } else {
+    showToast(`Export ${format.toUpperCase()} - format tidak dikenali`, 'error');
+  }
+}
+
+// ===== INIT =====
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+document.getElementById('sidebarYear').textContent = new Date().getFullYear();
+document.getElementById('settingYear').value = new Date().getFullYear();
+showPage('landing');
 lucide.createIcons();
-  <!-- Semua script dan style sudah dipisahkan ke file style.css dan app.js untuk static hosting Vercel -->
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dc874b9c4318a9a',t:'MTc3MzU0NTU5OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dc9823b9481e789',t:'MTc3MzU1NjYzOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
